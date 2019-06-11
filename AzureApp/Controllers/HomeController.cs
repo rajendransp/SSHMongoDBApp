@@ -31,8 +31,9 @@ namespace AzureWebApp.Controllers
         {
             try
             {
-                MongoConnection mongoServer = GetMongoServer(mongodbConnection);
-                return Json(string.Concat(string.Join(",",mongoServer.MongoDBServer.GetDatabaseNames().ToList()),"_________________", mongoServer.MongoLogs), JsonRequestBehavior.AllowGet);
+                 MongoConnection mongoServer = GetMongoServer(mongodbConnection);
+                return Json(string.Concat("_________________", mongoServer.MongoLogs), JsonRequestBehavior.AllowGet);
+                //return Json(string.Concat(string.Join(",",mongoServer.MongoDBServer.GetDatabaseNames().ToList()),"_________________", mongoServer.MongoLogs), JsonRequestBehavior.AllowGet);
             }
             catch(Exception e)
             {

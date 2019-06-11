@@ -1,0 +1,166 @@
+﻿@model AzureWebApp.Models.MongoDBConnectionDetails
+@{
+    ViewBag.Title = "Home Page";
+}
+<link href="~/Styles/webapp.css" rel="stylesheet" />
+<div class="jumbotron">
+</div>
+<div class="row">
+    <div class="col-md-4">
+        <h2>MongoDB Test Connection</h2>
+        <table style="width:100%">
+            <tr>
+                <td><label class="azure-web-app-label">MongoDB HostName: </label></td>
+                <td>
+                    <input type="text" name="txtHostName" id="txtHostName" value="localhost" class="azure-web-app-textbox" />
+                </td>
+            </tr>
+            <tr>
+                <td><label class="azure-web-app-label">MongoDB Port: </label></td>
+                <td>
+                    <input type="text" name="txtPortNumber" id="txtPortNumber" value="27017" class="azure-web-app-textbox" />
+                </td>
+            </tr>
+            <tr>
+                <td><label class="azure-web-app-label">SSH HostName: </label></td>
+                <td>
+                    <input type="text" name="txtSshHost" id="txtSshHost" value="" class="azure-web-app-textbox" />
+                </td>
+            </tr>
+
+            <tr>
+                <td><label class="azure-web-app-label">SSH Port: </label></td>
+                <td>
+                    <input type="text" name="txtSshPort" id="txtSshPort" value="22" class="azure-web-app-textbox" />
+                </td>
+            </tr>
+            <tr>
+                <td><label class="azure-web-app-label">SSH UserName: </label></td>
+                <td>
+                    <input type="text" name="txtSshUserName" id="txtSshUserName" value="" class="azure-web-app-textbox" />
+                </td>
+            </tr>
+            <tr>
+                <td><label class="azure-web-app-label">SSH Password: </label></td>
+                <td>
+                    <input type="text" name="txtSshPassword" id="txtSshPassword" value="" class="azure-web-app-textbox" />
+                </td>
+            </tr>
+            @*<tr>
+            <td><label class="azure-web-app-label">UserName: </label></td>
+            <td>
+                <input type="text" name="txtUserName" id="txtUserName" class="azure-web-app-textbox" />
+            </td>
+        </tr>
+        <tr>
+            <td><label class="azure-web-app-label">Password: </label></td>
+            <td>
+                <input type="text" name="txtPassword" id="txtPassword" class="azure-web-app-textbox" />
+            </td>
+        </tr>*@
+            @*<tr>
+            <td><label class="azure-web-app-label">Authentication DataBase: </label></td>
+            <td>
+                <input type="text" name="txtAuthenticationDatabase" id="txtAuthenticationDatabase" class="azure-web-app-textbox" />
+            </td>
+        </tr>*@
+            <tr>
+                <td><label class="azure-web-app-label">SSH Private Key: </label></td>
+                <td>
+                    <input type="text" name="txtSshPrivateKey" id="txtSshPrivateKey" style="width:150px !important" class="azure-web-app-textbox" />
+                    @*<input type="button" value="Upload" onclick="upload()" name="SslClientCertificate" id="SslClientCertificate" />*@
+                    <input type="file" id="FileUpload1" />
+                    <input type="button" id="btnUpload" value="Upload Files" />
+                </td>
+            </tr>
+            <tr>
+                <td><label class="azure-web-app-label">Logs: </label></td>
+                <td>
+                    <textarea id="drpDatabaseList" name="drpDatabaseList" cols="30" rows="5" style="width:450px !important;height:220px !important;"></textarea>
+                </td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>
+                    <input type="submit" value="Connect" onclick="Connect()" />
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+<script src="~/Scripts/jquery-1.10.2.min.js"></script>
+<script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<script>
+    $('#btnUpload').click(function () {
+        // Checking whether FormData is available in browser
+        if (window.FormData !== undefined) {
+
+            var fileUpload = $("#FileUpload1").get(0);
+            var files = fileUpload.files;
+
+            // Create FormData object
+            var fileData = new FormData();
+
+            // Looping over all files and add it to FormData object
+            for (var i = 0; i < files.length; i++) {
+                fileData.append(files[i].name, files[i]);
+            }
+
+            // Adding one more key to FormData object
+            // fileData.append('username', ‘Manas’);
+
+            $.ajax({
+                url: '/Home/UploadFiles',
+                type: "POST",
+                contentType: false, // Not to set any content header
+                processData: false, // Not to process data
+                data: fileData,
+                success: function (result) {
+                    $('#txtSshPrivateKey').val(result);
+                    alert(result);
+                },
+                error: function (err) {
+                    alert(err.statusText);
+                }
+            });
+        } else {
+            alert("FormData is not supported.");
+        }
+    });
+
+    function Connect() {
+        var data = {
+            HostName: $('#txtHostName').val(),
+            Port: $('#txtPortNumber').val(),
+            SshHostName: $('#txtSshHost').val(),
+            SshPort: $('#txtSshPort').val(),
+            SshPrivateKey: $('#txtSshPrivateKey').val(),
+            SshUserName: $('#txtSshUserName').val(),
+            SshPassword: $('#txtSshPassword').val(),
+            //SslClientCertificate: $('#txtSshPrivateKey').val(),
+            //SslCertificatePassword: $('#txtSslCertificatePassword').val(),
+            //AuthenticationDatabase: $('#txtAuthenticationDatabase').val(),
+        };
+        $.post("/Home/FormOne", {
+            mongodbConnection: data
+        },
+            function () { }).done(function (formData) {
+                $('#drpDatabaseList').val('List of Databases -------  ' + formData);
+                alert('List of Databases -------  ' + formData)
+            });
+    }
+
+    function upload() {
+        var data = $('#txtSshPrivateKey').val();
+        $.post("/Home/FileUpload", {
+            filePath: data
+        },
+            function () { }).done(function (result) {
+                $('#txtSshPrivateKey').val(result);
+                alert(result);
+            }).fail(function (a, b, c) {
+                console.log(a, b, c);
+            });
+    }
+</script>

@@ -1,4 +1,5 @@
 ﻿using AzureApp.Helper;
+using Renci.SshNet;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -25,7 +26,9 @@ namespace AzureWebApp.Models
         public byte[] SshPrivateKeyData
         {
             get;set;
-        }
+        }       
+        public SshClient SshClient { get; set; }
+        public ForwardedPortLocal forwardedPortLocal { get; set; }
     }
 
     public enum MongoAuthentication

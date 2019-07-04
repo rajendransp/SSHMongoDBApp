@@ -146,7 +146,7 @@
             mongodbConnection: data
         },
             function () { }).done(function (formData) {
-                $('#drpDatabaseList').val('List of Databases -------  ' + formData);
+                $('#drpDatabaseList').val(formData);
                 alert('List of Databases -------  ' + formData)
             });
     }

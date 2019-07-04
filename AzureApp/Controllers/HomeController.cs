@@ -30,9 +30,13 @@ namespace AzureWebApp.Controllers
         public JsonResult FormOne(Models.MongoDBConnectionDetails mongodbConnection)
         {
             try
-            {
-                 MongoConnection mongoServer = GetMongoServer(mongodbConnection);
-                return Json(string.Concat("_________________", mongoServer.MongoLogs), JsonRequestBehavior.AllowGet);
+            {                
+                CreateSSHTunnel(mongodbConnection,out string sSHLogs);
+                MongoConnection mongoServer = GetMongoServer(mongodbConnection, out string mongoLogs);
+                GetDatabases(mongoServer, out string databaseLogs);
+                mongodbConnection.forwardedPortLocal.Stop();
+                mongodbConnection.SshClient.Disconnect();
+                return Json(string.Concat(sSHLogs, mongoLogs, databaseLogs), JsonRequestBehavior.AllowGet);
                 //return Json(string.Concat(string.Join(",",mongoServer.MongoDBServer.GetDatabaseNames().ToList()),"_________________", mongoServer.MongoLogs), JsonRequestBehavior.AllowGet);
             }
             catch(Exception e)
@@ -116,82 +120,114 @@ namespace AzureWebApp.Controllers
 
             return View();
         }
-        private MongoConnection GetMongoServer(Models.MongoDBConnectionDetails connectionParameters)
+
+        private void CreateSSHTunnel(Models.MongoDBConnectionDetails connectionParameters,out string logs)
         {
+            logs = string.Empty;
+            try
+            {
+                string fullPath = Path.Combine(Server.MapPath("~/Files/certificates/"), connectionParameters.SshPrivateKey);
+                ConnectionInfo conn = new ConnectionInfo(connectionParameters.SshHostName, int.Parse(connectionParameters.SshPort), connectionParameters.SshUserName, new PrivateKeyAuthenticationMethod(connectionParameters.SshUserName, new PrivateKeyFile(fullPath, connectionParameters.SshPassword)));
+                connectionParameters.SshClient = new SshClient(conn);
+                connectionParameters.SshClient.Connect();
+                logs += string.Format("Connected with SSH Server \n");
+                connectionParameters.forwardedPortLocal = new ForwardedPortLocal("127.0.0.1", 5122, connectionParameters.HostName, (uint)connectionParameters.Port);
+                connectionParameters.SshClient.AddForwardedPort(connectionParameters.forwardedPortLocal);
+                connectionParameters.forwardedPortLocal.Start();
+                logs += string.Format("SSH Tunnel created \n");                
+            }
+            catch(Exception e)
+            {
+                logs += string.Format(e.Message);
+            }      
+        }
+
+        private void GetDatabases(MongoConnection mongoConnection,out string logs)
+        {
+            logs = string.Empty;
+            try
+            {
+                var databases = mongoConnection.MongoDBServer.GetDatabaseNames().ToList();
+                logs += string.Format("\n\n Available databases in MongoDB Server:");
+                foreach(string database in databases)
+                    logs += string.Format(database + "\n");
+            }
+            catch(Exception e)
+            {
+                logs += string.Format(e.Message);
+            }
+            
+        }
+        private MongoConnection GetMongoServer(Models.MongoDBConnectionDetails connectionParameters,out string logs)
+        {
+            logs = string.Empty;
             MongoConnection connection = new MongoConnection();
             MongoDBClientConnection mongoDBClientConnection = PrepareMongoClient(connectionParameters);
             try
             {
-                connection.MongoDBServer = mongoDBClientConnection.MongoDBClient.GetServer();
-                connection.MongoLogs = mongoDBClientConnection.MongoLogs;
-                //connection.MongoDBServer.Connect();
-                return connection;
+                connection.MongoDBServer = mongoDBClientConnection.MongoDBClient.GetServer();                
+                connection.MongoDBServer.Connect();
+                logs += string.Format("Connected with MongoDB Server \n");                
             }
             catch (Exception e)
             {
-                throw new Exception(mongoDBClientConnection.MongoLogs,e);
+                logs += string.Format(e.Message);
+                
             }
+            return connection;
         }
     
         private MongoDBClientConnection PrepareMongoClient(Models.MongoDBConnectionDetails connectionParameters)
         {
-            MongoDBClientConnection connection = new MongoDBClientConnection();
-            string logs = string.Empty;
-            try
-            {
-                connection.MongoDBClient = new MongoClient(GetMongoSettings(connectionParameters, out logs));
-                connection.MongoLogs = logs;
-                return connection;
-            }
-            catch(Exception ex)
-            {
-                throw new Exception(logs,ex);
-            }
+            MongoDBClientConnection connection = new MongoDBClientConnection();  
+            connection.MongoDBClient = new MongoClient(GetMongoSettings(connectionParameters));               
+            return connection;        
         }
 
-        private MongoClientSettings GetMongoSettings(Models.MongoDBConnectionDetails connectionParameters,out string logs)
-        {
-            logs = string.Empty;
+        private MongoClientSettings GetMongoSettings(Models.MongoDBConnectionDetails connectionParameters)
+        {           
             MongoClientSettings settings = new MongoClientSettings
             {
-                Server = new MongoServerAddress(connectionParameters.HostName, connectionParameters.Port),
+                Server = new MongoServerAddress(connectionParameters.HostName, 5122),
                 RetryWrites = true
             };
-            logs += "--- Basic MongoDB Settings has done. \n";
-
-            string hostname = connectionParameters.SshHostName;
-            logs += string.Format("--- Basic SSH Settings has done wih SSH host name {0} \n",hostname);
-            int port = int.Parse(connectionParameters.SshPort);
-            logs += string.Format("--- Basic SSH Settings has done wih SSH port name {0} \n", port);
-            string username = connectionParameters.SshUserName;
-            logs += string.Format("--- Basic SSH Settings has done wih SSH UserName {0} \n", username);
-            string password = connectionParameters.SshPassword;
-            logs += string.Format("--- Basic SSH Settings has done wih SSH Password {0} \n", password);
-            logs += string.Format("--- Basic SSH Settings has done wih SSH Private key file {0} \n", connectionParameters.SshPrivateKey);
-           string fullPath = Path.Combine(Server.MapPath("~/Files/certificates/"), connectionParameters.SshPrivateKey);
-            logs += "--- Certificate file as readed as stream \n";
-            try
-            {
-
-                ConnectionInfo conn = new ConnectionInfo(hostname, port, username, new PrivateKeyAuthenticationMethod(username, new PrivateKeyFile(fullPath, password)));
-                logs += "--- SSH Connection setting has been prepared. \n";
-                SshClient cli = new SshClient(conn);
-                logs += "--- SSH Connection has been prepared. \n";
-                cli.Connect();
-                logs += "--- SSH Connection has been started. \n";
-            }
-            catch(Exception exception)
-            {
-                logs += "--- SSH Connection has been stopeed. \n";
-                logs += string.Format("--- {0}\n",exception.Message);
-                if(exception.InnerException != null)
-                {
-                    logs += string.Format("--- {0}\n", exception.InnerException.Message);
-                }
-            }
 
 
-            logs += "--- SSH Connection has been finished. \n";
+          ////  logs += "--- Basic MongoDB Settings has done. \n";
+
+          //  string hostname = connectionParameters.SshHostName;
+          // // logs += string.Format("--- Basic SSH Settings has done wih SSH host name {0} \n",hostname);
+          //  int port = int.Parse(connectionParameters.SshPort);
+          // // logs += string.Format("--- Basic SSH Settings has done wih SSH port name {0} \n", port);
+          //  string username = connectionParameters.SshUserName;
+          ////  logs += string.Format("--- Basic SSH Settings has done wih SSH UserName {0} \n", username);
+          //  string password = connectionParameters.SshPassword;
+          ////  logs += string.Format("--- Basic SSH Settings has done wih SSH Password {0} \n", password);
+          ////  logs += string.Format("--- Basic SSH Settings has done wih SSH Private key file {0} \n", connectionParameters.SshPrivateKey);
+          // string fullPath = Path.Combine(Server.MapPath("~/Files/certificates/"), connectionParameters.SshPrivateKey);
+          ////  logs += "--- Certificate file as readed as stream \n";
+            //try
+            //{
+
+            //    ConnectionInfo conn = new ConnectionInfo(hostname, port, username, new PrivateKeyAuthenticationMethod(username, new PrivateKeyFile(fullPath, password)));
+            //  //  logs += "--- SSH Connection setting has been prepared. \n";
+            //    SshClient cli = new SshClient(conn);
+            //  //  logs += "--- SSH Connection has been prepared. \n";
+            //    cli.Connect();
+            //  //  logs += "--- SSH Connection has been started. \n";
+            //}
+            //catch(Exception exception)
+            //{
+            //    logs += "--- SSH Connection has been stopeed. \n";
+            //    logs += string.Format("--- {0}\n",exception.Message);
+            //    if(exception.InnerException != null)
+            //    {
+            //        logs += string.Format("--- {0}\n", exception.InnerException.Message);
+            //    }
+            //}
+
+
+            //logs += "--- SSH Connection has been finished. \n";
 
 
 
